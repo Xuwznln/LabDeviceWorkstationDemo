@@ -1,0 +1,116 @@
+{
+    "nodes": [
+        {
+            "id": "DemoWorkstation",
+            "name": "演示工作站",
+            "children": [
+                "serial_mock",
+                "io_mock_modbus",
+                "echo_reader",
+                "modbus_sensor_a",
+                "modbus_sensor_b"
+            ],
+            "parent": null,
+            "type": "device",
+            "class": "demo_workstation",
+            "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+            },
+            "config": {
+                "protocol_type": []
+            },
+            "data": {}
+        },
+        {
+            "id": "serial_mock",
+            "name": "模拟串口",
+            "children": [],
+            "parent": "DemoWorkstation",
+            "type": "device",
+            "class": "serial_mock",
+            "position": {
+                "x": 0,
+                "y": 200,
+                "z": 0
+            },
+            "config": {
+                "port": "MOCK1",
+                "baudrate": 9600
+            },
+            "data": {}
+        },
+        {
+            "id": "echo_reader",
+            "name": "回显读取设备",
+            "children": [],
+            "parent": "DemoWorkstation",
+            "type": "device",
+            "class": "echo_reader",
+            "position": {
+                "x": 300,
+                "y": 200,
+                "z": 0
+            },
+            "config": {
+                "port": "serial_mock"
+            },
+            "data": {}
+        },
+        {
+            "id": "io_mock_modbus",
+            "name": "模拟Modbus总线",
+            "children": [],
+            "parent": "DemoWorkstation",
+            "type": "device",
+            "class": "io_mock_modbus",
+            "position": {
+                "x": 0,
+                "y": 400,
+                "z": 0
+            },
+            "config": {
+                "port": "MODBUS1"
+            },
+            "data": {}
+        },
+        {
+            "id": "modbus_sensor_a",
+            "name": "Modbus传感器A",
+            "children": [],
+            "parent": "DemoWorkstation",
+            "type": "device",
+            "class": "modbus_sensor",
+            "position": {
+                "x": 300,
+                "y": 400,
+                "z": 0
+            },
+            "config": {
+                "port": "io_mock_modbus",
+                "slave_id": 3
+            },
+            "data": {}
+        },
+        {
+            "id": "modbus_sensor_b",
+            "name": "Modbus传感器B",
+            "children": [],
+            "parent": "DemoWorkstation",
+            "type": "device",
+            "class": "modbus_sensor",
+            "position": {
+                "x": 600,
+                "y": 400,
+                "z": 0
+            },
+            "config": {
+                "port": "io_mock_modbus",
+                "slave_id": 7
+            },
+            "data": {}
+        }
+    ],
+    "links": []
+}

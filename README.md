@@ -1,144 +1,200 @@
-# LabDeviceTemplate
+# device_package_workstation_demo
 
-Uni-Lab-OS 外部设备包模板仓库。Fork 本仓库即可快速创建你自己的设备驱动包。
+**English** | [中文](README_zh.md)
 
-**创建时间**: 2026-03
+An external device package for Uni-Lab-OS that demonstrates the **`hardware_interface` proxy**:
+several sub devices inside one workstation share a single communication endpoint. It covers **two
+patterns**:
 
-## 功能
+- **B1 — shared serial**: multiple devices share one (mock) serial port.
+- **B2 — `extra_info` injection (Modbus slave_id)**: multiple sensors share one (mock) Modbus bus,
+  and each one automatically carries its own `slave_id` on every read/write.
 
-- 提供标准的设备包目录结构
-- 包含一个示例计数设备 (`counting_device.py`)
-- 内置 GitHub Actions CI，自动验证注册表
+## Devices
 
-## 快速开始
+| Device class      | Class             | Pattern | Role                                                                              |
+| ----------------- | ----------------- | ------- | -------------------------------------------------------------------------------- |
+| `serial_mock`     | `MockSerialDevice`| B1      | Mock serial endpoint (in-memory read/write), default method names `send_command`/`read_data` |
+| `echo_reader`     | `EchoReaderDevice`| B1      | Consumer whose `send_command`/`read_data` are proxied to `serial_mock`            |
+| `io_mock_modbus`  | `MockModbusBus`   | B2      | Mock Modbus endpoint with **custom** method names `write_io_coil`/`read_io_coil`  |
+| `modbus_sensor`   | `ModbusSensor`    | B2      | Consumer sharing the bus; declares `extra_info=["slave_id"]` so its own `slave_id` is injected on every call |
+| `demo_workstation`| `DemoWorkstation` | —       | Workstation composing all of the above; exposes a `run_demo` action               |
 
-### 1. Fork 本仓库
-
-点击右上角 **Fork** 按钮，创建你自己的仓库副本。
-
-### 2. 修改包名
-
-将 `device_package_example/` 目录重命名为你的设备包名称，例如 `my_lab_devices/`。
-
-同时更新 `pyproject.toml` 中的包名和描述：
-
-```toml
-[project]
-name = "my_lab_devices"
-description = "我的实验室设备包"
-```
-
-### 3. 编写设备代码
-
-参考 `device_package_example/counting_device.py` 示例，使用 `@device` 装饰器编写你的设备类：
-
-```python
-from unilabos.registry.decorators import device, action, topic_config
-
-@device(
-    id="my_device",
-    category=["custom"],
-    description="我的自定义设备",
-    display_name="自定义设备",
-)
-class MyDevice:
-    def __init__(self, device_id=None, config=None, **kwargs):
-        """
-        初始化设备。
-
-        Args:
-            device_id[设备ID]: 设备实例 ID。
-            config[设备配置]: 设备启动配置。
-        """
-        self.device_id = device_id or "my_device"
-        self.data = {}
-
-    @action(description="执行操作")
-    def do_something(self, param: str = "") -> dict:
-        """
-        执行示例操作。
-
-        Args:
-            param[操作参数]: 示例操作的字符串参数。
-        """
-        return {"success": True}
-
-    @property
-    @topic_config()
-    def status(self) -> str:
-        return self.data.get("status", "idle")
-```
-
-### 4. 本地开发与测试
+## Prerequisites
 
 ```bash
-# 创建 conda 环境并安装 unilabos（需要 ROS2 完整环境）
-mamba create -n unilab python=3.11.14 -c conda-forge -y
-mamba activate unilab
-mamba install uni-lab::unilabos -c uni-lab -c robostack-staging -c conda-forge -y
-
-# 验证注册表（check mode，会自动检测并安装 requirements.txt 中的依赖）
-unilab --check_mode --devices ./device_package_example --external_devices_only
-
-# 启动服务（带实验图）
-unilab --devices ./device_package_example --external_devices_only -g graph.json
+mamba activate unilab          # ROS 2 (humble) + unilabos environment
+cd <repo-root>                 # run all commands from the Uni-Lab-OS repo root
 ```
 
-> **依赖自动安装**: unilabos 在启动时会自动检测 `--devices` 目录下的 `requirements.txt`，缺失的包会通过 `uv`（优先）或 `pip` 自动安装。
+> **Credentials are mandatory.** `unilabos.app.main` exits immediately if `--ak` / `--sk` are not
+> provided (it needs a lab on the cloud). Reuse the AK/SK/addr from your IDE "test" run
+> configuration (or your own account at <https://leap-lab.bohrium.com>). `--upload_registry` is the
+> only optional cloud flag (it pushes the registry; drop it for a faster start). There is **no**
+> fully offline mode — `--ak/--sk/--addr` must always be present.
 
-### 5. CI 验证
+---
 
-Push 代码后，GitHub Actions 会自动运行 `--check_mode` 验证你的设备定义是否正确。
+## How the proxy works
 
-## 目录结构
+`ROS2WorkstationNode` starts the sub devices in two passes:
+
+1. **Initialize all sub devices**: ids starting with `serial_` / `io_` are registered as
+   *communication endpoints*.
+2. **Proxy replacement**: for each sub device it reads its
+   `_hardware_interface = {name, read, write, extra_info}`:
+   - take the value of `getattr(driver, name)` (here `name="hardware_interface"`);
+   - if that value is a string equal to some communication endpoint's id, **replace** this
+     device's `read` / `write` methods with the endpoint's implementation;
+   - additionally, every name listed in the consumer's `extra_info` is read from the consumer
+     instance **at call time** and injected as a keyword argument into the endpoint's read/write
+     (this is how per-device `slave_id` rides along).
+
+Key role distinction:
+
+| Role                  | `hardware_interface.name` | `read` / `write`                                  | `extra_info`                          |
+| --------------------- | ------------------------- | ------------------------------------------------- | ------------------------------------- |
+| Communication endpoint | set to `None` (so it is never proxied) | **must point to its real IO methods** (or use the default names `send_command`/`read_data` and omit the decorator arg) | the kwargs it accepts (e.g. `slave_id`) |
+| Consumer              | an attribute holding the endpoint id (e.g. `self.hardware_interface = "serial_mock"`) | the method names on itself that get replaced by the proxy | the attributes on itself to inject each call (e.g. `["slave_id"]`) |
+
+> **Endpoints with non-default method names MUST declare `hardware_interface`.** `serial_mock` uses
+> the defaults (`send_command`/`read_data`) so it can omit the arg, but `io_mock_modbus` uses
+> `write_io_coil`/`read_io_coil`, so it **must** declare them — otherwise the proxy falls back to
+> `send_command`/`read_data` and raises `AttributeError`. (The framework logs a clear error and
+> skips that binding instead of crashing the whole workstation, but the binding still won't work
+> until you declare the real method names.)
+> **Proxy binding depends only on `config` (the `port`/endpoint-id values) matching, not on graph
+> `links`.** The shipped graph has `"links": []`.
+
+### B1 — shared serial
+
+- `serial_mock` exposes `send_command` (write) / `read_data` (read), id starts with `serial_`;
+- `echo_reader.__init__` sets `self.hardware_interface = port`, and the graph sets `port = "serial_mock"`;
+- after startup, `echo_reader.send_command` / `read_data` are proxied to `serial_mock`, realizing
+  "multiple devices sharing one serial port".
+
+### B2 — `extra_info` injection (Modbus slave_id)
+
+- `io_mock_modbus` is the endpoint; its `write_io_coil(coil, value, slave_id=None)` /
+  `read_io_coil(coil, slave_id=None)` accept a `slave_id` kwarg;
+- `modbus_sensor` declares `extra_info=["slave_id"]` and sets `self.slave_id` from the graph
+  `config` (`modbus_sensor_a` → 3, `modbus_sensor_b` → 7);
+- when the proxied `write_io_coil` / `read_io_coil` fire, the workstation injects the consumer's
+  current `self.slave_id` as `slave_id=<value>`. So two sensors sharing one bus each carry their
+  own slave id automatically.
+
+---
+
+## Launch tutorial (single process, ships its own `-g` graph)
+
+Pick any free port (here `8100`). The endpoint ids and proxy bindings come from the graph's
+`config`; no `links` are needed.
+
+```bash
+python -m unilabos.app.main \
+  --devices ./device_package_workstation_demo/workstation_demo \
+  --external_devices_only \
+  --ak <YOUR_AK> --sk <YOUR_SK> --addr test --upload_registry \
+  --disable_browser --port 8100 \
+  -g ./device_package_workstation_demo/graph/workstation_demo.json
+```
+
+Startup is healthy when the log shows all five sub devices initialized and:
 
 ```
-├── README.md                     # 本文件
-├── requirements.txt              # Python 依赖
-├── pyproject.toml                # 包配置（支持 pip install -e .）
-├── .github/
-│   └── workflows/
-│       └── check_registry.yml    # CI 自动验证
-├── device_package_example/       # 设备包（重命名为你的包名）
-│   ├── __init__.py
-│   └── counting_device.py        # 示例设备
-└── .gitignore
+[Uvicorn] Uvicorn running on http://0.0.0.0:8100
+[WebSocketClient] Host node ready signal published with 2 devices
 ```
 
-## 装饰器参考
+## Try the actions (verified)
 
-| 装饰器 | 用途 | 示例 |
-|---|---|---|
-| `@device(id=..., category=[...])` | 标记设备类 | `@device(id="my_pump", category=["pump_and_valve"])` |
-| `@action(...)` | 标记动作方法 | `@action(description="启动泵")` |
-| `@topic_config()` | 标记状态属性（配合 `@property`） | 见示例代码 |
-| `@not_action` | 排除公共方法（不作为动作） | `@not_action` |
-| `@always_free` | 标记为不受排队限制的动作 | `@always_free` |
+Actions are submitted to the local HTTP API `POST /api/v1/job/add`. The body is
+`{device_id, action, sample_material:{}, action_args:{...}}`.
 
-## 自动发现规则
+> ⚠️ **Do not name an action parameter `command`.** The `job/add` endpoint treats an
+> `action_args.command` key as a "raw command string" and unwraps it, which breaks actions
+> dispatched through the generic `_execute_driver_command` channel (they need a dict). That is why
+> `run_demo` / `query` use the parameter name `cmd`.
 
-- 带 `@action` 装饰器的方法 → 注册为**动作**
-- 不带 `@action` 的公共方法 → 自动注册为 `auto-{方法名}` 动作
-- `@property` + `@topic_config()` → 注册为**状态属性**
-- `_` 开头的方法/属性 → 不会被扫描
-- `@not_action` 标记的方法 → 不会被注册为动作
+**Windows PowerShell (Invoke-RestMethod):**
 
-## 参数文档规范
+```powershell
+$base = "http://127.0.0.1:8100/api/v1/job/add"
+function Run-Action($id,$act,$args){ Invoke-RestMethod -Uri $base -Method Post -ContentType "application/json" -Body (@{device_id=$id;action=$act;sample_material=@{};action_args=$args}|ConvertTo-Json -Compress) }
 
-在 `__init__` 和 action 方法 docstring 的 `Args:` 小节中，使用以下格式补充 schema 元数据：
-
-```python
-"""
-Args:
-    param[显示名称]: 参数说明，会写入 JSON Schema 的 description。
-"""
+Run-Action "DemoWorkstation" "run_demo" @{ cmd="PING" }      # B1 serial via workstation
+Run-Action "echo_reader"     "query"    @{ cmd="ID?" }       # B1 serial via the consumer directly
+Run-Action "modbus_sensor_a" "probe"    @{ coil=0; value=1 } # B2 extra_info, slave_id=3
+Run-Action "modbus_sensor_b" "probe"    @{ coil=2; value=1 } # B2 extra_info, slave_id=7
 ```
 
-- `param[显示名称]` 中的显示名称会写入 JSON Schema 字段的 `title`。
-- `:` 后面的说明会写入 JSON Schema 字段的 `description`。
-- 如果只写 `param: 参数说明`，`title` 会兜底为字段名，`description` 使用参数说明。
-- 如果没有写参数文档，生成器也会兜底补齐 `title=<字段名>` 和 `description=""`，但设备包示例应优先写清楚显示名和说明。
+**Linux/macOS (or Windows `curl.exe`):**
 
-## License
+```bash
+curl -X POST http://127.0.0.1:8100/api/v1/job/add \
+  -H "Content-Type: application/json" \
+  -d '{"device_id":"modbus_sensor_a","action":"probe","sample_material":{},"action_args":{"coil":0,"value":1}}'
+```
 
-MIT
+Each call returns `{"code":0,"data":{"status":1,...}}` (accepted). The proof shows up in the
+server log:
+
+```
+# B1 — echo_reader's send/read proxied to serial_mock
+[MockSerial] PING -> PONG
+[DemoWorkstation] PING -> PONG
+[MockSerial] ID? -> MOCK-SERIAL-v1
+
+# B2 — each sensor injects its own slave_id onto the shared bus
+[MockModbus] WRITE slave=3 coil=0 value=1     # modbus_sensor_a
+[MockModbus] READ  slave=3 coil=0 -> 1
+[MockModbus] WRITE slave=7 coil=2 value=1     # modbus_sensor_b
+[MockModbus] READ  slave=7 coil=2 -> 1
+```
+
+The differing `slave=3` / `slave=7` from the **same** `io_mock_modbus` bus is the live proof that
+`extra_info` injects each consumer's own attribute.
+
+## Stopping
+
+Stop the process with `Ctrl+C` (or kill the PID).
+
+---
+
+## Registry check (validate the package without launching)
+
+```bash
+cd device_package_workstation_demo
+unilab --check_mode --devices ./workstation_demo --external_devices_only
+```
+
+## Troubleshooting
+
+- Process exits right after start with "请前往 ... 注册实验室" / "register a lab": `--ak/--sk` were
+  missing or invalid. They are mandatory (see Prerequisites).
+- `'<Endpoint>' object has no attribute 'send_command'`: the communication endpoint uses custom
+  method names but did not declare `hardware_interface` with the real `read`/`write`. Declare them.
+- `执行动作时JSON必须为dict` / `function_args must be a dict`: you passed an action parameter named
+  `command` (it gets unwrapped). Rename the parameter (e.g. to `cmd`).
+- Port already in use: pick a different `--port`.
+
+## Directory structure
+
+```
+device_package_workstation_demo/
+├── README.md                     # English (this file)
+├── README_zh.md                  # 中文
+├── requirements.txt
+├── pyproject.toml
+├── .gitignore
+├── .github/workflows/check_registry.yml
+├── graph/
+│   └── workstation_demo.json     # workstation graph (serial + modbus sub devices)
+└── workstation_demo/             # python package scanned by --devices
+    ├── __init__.py
+    ├── mock_serial.py            # MockSerialDevice (B1 endpoint)
+    ├── echo_reader.py            # EchoReaderDevice (B1 consumer)
+    ├── mock_modbus_bus.py        # MockModbusBus (B2 endpoint)
+    ├── modbus_sensor.py          # ModbusSensor (B2 consumer, extra_info=slave_id)
+    └── demo_workstation.py       # DemoWorkstation (the workstation)
+```
