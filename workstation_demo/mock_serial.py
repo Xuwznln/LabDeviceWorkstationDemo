@@ -6,7 +6,7 @@
 "多个设备共享同一个串口"。
 
 约束：设备节点的 id 必须以 ``serial_`` (或 ``io_``) 开头，
-``ROS2WorkstationNode`` 才会把它识别为通信设备并参与代理替换。
+工作站运行节点才会把它识别为通信设备并参与代理替换。
 """
 
 import logging
@@ -22,6 +22,7 @@ from unilabos.registry.decorators import device, topic_config
     category=["communication_devices"],
     description="模拟串口设备 — 内存模拟读写，供工作站内其它设备共享",
     displayname="模拟串口",
+    supported_backends=["hostlink", "ros2"],
 )
 class MockSerialDevice:
     """内存模拟串口：写入一条指令即返回模拟应答，读取返回最近一次应答。"""
@@ -56,8 +57,8 @@ class MockSerialDevice:
         self._last_response: str = ""
         self._history: List[Dict[str, str]] = []
 
-    def post_init(self, ros_node: Any) -> None:
-        self._ros_node = ros_node
+    def post_init(self, device_node: Any) -> None:
+        self._device_node = device_node
 
     def send_command(self, command: str) -> str:
         """模拟 "写"：发送一条指令并返回模拟下位机应答。

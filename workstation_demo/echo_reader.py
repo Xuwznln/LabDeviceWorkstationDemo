@@ -2,7 +2,7 @@
 
 本设备自身不直接持有串口。它在 ``__init__`` 中把 ``self.hardware_interface``
 设为某个通信设备的 id 字符串 (例如 ``"serial_mock"``)。工作站启动时，
-``ROS2WorkstationNode`` 会检测到该字符串指向一个已注册的通信子设备，并把本设备的
+工作站运行节点会检测到该字符串指向一个已注册的通信子设备，并把本设备的
 ``send_command`` / ``read_data`` 方法替换 (代理) 为通信设备的实现。
 
 代理建立的条件 (见 ``unilabos/ros/nodes/presets/workstation.py``)：
@@ -28,6 +28,7 @@ from unilabos.registry.decorators import (
     category=["sensor"],
     description="回显读取设备 — 通过共享串口 (hardware_interface 代理) 收发指令",
     displayname="回显读取设备",
+    supported_backends=["hostlink", "ros2"],
     hardware_interface=HardwareInterface(
         name="hardware_interface",
         read="read_data",
@@ -57,8 +58,8 @@ class EchoReaderDevice:
         self._last_command: str = ""
         self._last_response: str = ""
 
-    def post_init(self, ros_node: Any) -> None:
-        self._ros_node = ros_node
+    def post_init(self, device_node: Any) -> None:
+        self._device_node = device_node
 
     @not_action
     def send_command(self, command: str) -> str:
@@ -74,10 +75,6 @@ class EchoReaderDevice:
     @action(description="发送指令并读取应答")
     def query(self, cmd: str = "PING") -> Dict[str, Any]:
         """通过共享串口发送一条指令并返回应答。
-
-        注意：形参名用 ``cmd`` 而非 ``command``——本地 job/add 接口会把 ``action_args``
-        里名为 ``command`` 的键特殊拆包成裸字符串，导致经 ``_execute_driver_command``
-        通道转发时报错。经该通道调用的动作请避开保留键 ``command``。
 
         Args:
             cmd[指令]: 要发送的 ASCII 指令，例如 PING / ID? / STATUS?。

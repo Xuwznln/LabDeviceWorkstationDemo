@@ -2,6 +2,7 @@
     "nodes": [
         {
             "id": "DemoWorkstation",
+            "uuid": "94f790a0-dc63-4aa6-8f31-000000001001",
             "name": "演示工作站",
             "children": [
                 "serial_mock",
@@ -13,10 +14,15 @@
             "parent": null,
             "type": "device",
             "class": "demo_workstation",
-            "position": {
-                "x": 0,
-                "y": 0,
-                "z": 0
+            "template_name": "demo_workstation",
+            "sites_initialized": true,
+            "sites": [],
+            "pose": {
+                "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                }
             },
             "config": {
                 "protocol_type": []
@@ -25,15 +31,21 @@
         },
         {
             "id": "serial_mock",
+            "uuid": "94f790a0-dc63-4aa6-8f31-000000001002",
             "name": "模拟串口",
             "children": [],
             "parent": "DemoWorkstation",
             "type": "device",
             "class": "serial_mock",
-            "position": {
-                "x": 0,
-                "y": 200,
-                "z": 0
+            "template_name": "serial_mock",
+            "sites_initialized": true,
+            "sites": [],
+            "pose": {
+                "position": {
+                    "x": 0,
+                    "y": 200,
+                    "z": 0
+                }
             },
             "config": {
                 "port": "MOCK1",
@@ -43,15 +55,21 @@
         },
         {
             "id": "echo_reader",
+            "uuid": "94f790a0-dc63-4aa6-8f31-000000001003",
             "name": "回显读取设备",
             "children": [],
             "parent": "DemoWorkstation",
             "type": "device",
             "class": "echo_reader",
-            "position": {
-                "x": 300,
-                "y": 200,
-                "z": 0
+            "template_name": "echo_reader",
+            "sites_initialized": true,
+            "sites": [],
+            "pose": {
+                "position": {
+                    "x": 300,
+                    "y": 200,
+                    "z": 0
+                }
             },
             "config": {
                 "port": "serial_mock"
@@ -60,15 +78,21 @@
         },
         {
             "id": "io_mock_modbus",
+            "uuid": "94f790a0-dc63-4aa6-8f31-000000001004",
             "name": "模拟Modbus总线",
             "children": [],
             "parent": "DemoWorkstation",
             "type": "device",
             "class": "io_mock_modbus",
-            "position": {
-                "x": 0,
-                "y": 400,
-                "z": 0
+            "template_name": "io_mock_modbus",
+            "sites_initialized": true,
+            "sites": [],
+            "pose": {
+                "position": {
+                    "x": 0,
+                    "y": 400,
+                    "z": 0
+                }
             },
             "config": {
                 "port": "MODBUS1"
@@ -77,15 +101,21 @@
         },
         {
             "id": "modbus_sensor_a",
+            "uuid": "94f790a0-dc63-4aa6-8f31-000000001005",
             "name": "Modbus传感器A",
             "children": [],
             "parent": "DemoWorkstation",
             "type": "device",
             "class": "modbus_sensor",
-            "position": {
-                "x": 300,
-                "y": 400,
-                "z": 0
+            "template_name": "modbus_sensor",
+            "sites_initialized": true,
+            "sites": [],
+            "pose": {
+                "position": {
+                    "x": 300,
+                    "y": 400,
+                    "z": 0
+                }
             },
             "config": {
                 "port": "io_mock_modbus",
@@ -95,15 +125,21 @@
         },
         {
             "id": "modbus_sensor_b",
+            "uuid": "94f790a0-dc63-4aa6-8f31-000000001006",
             "name": "Modbus传感器B",
             "children": [],
             "parent": "DemoWorkstation",
             "type": "device",
             "class": "modbus_sensor",
-            "position": {
-                "x": 600,
-                "y": 400,
-                "z": 0
+            "template_name": "modbus_sensor",
+            "sites_initialized": true,
+            "sites": [],
+            "pose": {
+                "position": {
+                    "x": 600,
+                    "y": 400,
+                    "z": 0
+                }
             },
             "config": {
                 "port": "io_mock_modbus",

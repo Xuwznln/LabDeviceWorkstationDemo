@@ -27,6 +27,7 @@ from unilabos.registry.decorators import (
     category=["sensor"],
     description="Modbus 传感器 — 通过共享总线 + extra_info(slave_id) 收发",
     displayname="Modbus传感器",
+    supported_backends=["hostlink", "ros2"],
     hardware_interface=HardwareInterface(
         name="hardware_interface",
         read="read_io_coil",
@@ -59,8 +60,8 @@ class ModbusSensor:
         self.logger = logging.getLogger(f"ModbusSensor.{self.device_id}")
         self._last_value: int = 0
 
-    def post_init(self, ros_node: Any) -> None:
-        self._ros_node = ros_node
+    def post_init(self, device_node: Any) -> None:
+        self._device_node = device_node
 
     @not_action
     def write_io_coil(self, coil: int, value: int) -> Dict[str, Any]:

@@ -22,6 +22,7 @@ from unilabos.registry.decorators import HardwareInterface, device, topic_config
     category=["communication_devices"],
     description="模拟 Modbus 总线 — 演示 extra_info(slave_id) 注入",
     displayname="模拟Modbus总线",
+    supported_backends=["hostlink", "ros2"],
     hardware_interface=HardwareInterface(
         name="hardware_interface",
         read="read_io_coil",
@@ -52,8 +53,8 @@ class MockModbusBus:
         self._coils: Dict[int, Dict[int, int]] = {}
         self._history: List[Dict[str, Any]] = []
 
-    def post_init(self, ros_node: Any) -> None:
-        self._ros_node = ros_node
+    def post_init(self, device_node: Any) -> None:
+        self._device_node = device_node
 
     def write_io_coil(self, coil: int, value: int, slave_id: Optional[int] = None) -> Dict[str, Any]:
         """模拟 "写线圈"。``slave_id`` 由工站从使用方的 extra_info 自动注入。

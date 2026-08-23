@@ -1,187 +1,96 @@
-# device_package_workstation_demo
+# UniLabOS 工作站演示
 
 [English](README.md) | **中文**
 
-Uni-Lab-OS 外部设备包示例，演示 **`hardware_interface` 代理**：同一工作站内的多个子设备共享
-同一个通信端点。包含**两种模式**：
+这个外部设备包用同一份工作站图同时演示 `hostlink` 与 `ros2`。五个子设备共享两个通信端点：
 
-- **B1 — 共享串口**：多个设备共享同一个（模拟）串口。
-- **B2 — `extra_info` 注入（Modbus slave_id）**：多个传感器共享同一条（模拟）Modbus 总线，
-  每个传感器在每次读写时自动带上各自的 `slave_id`。
+- `echo_reader` 复用 `serial_mock`，发送 `PING` 返回 `PONG`；
+- `modbus_sensor_a` 与 `modbus_sensor_b` 复用同一个 `io_mock_modbus`，但
+  `extra_info=["slave_id"]` 会在每次调用时分别注入从站号 `3` 和 `7`；
+- `demo_workstation.run_demo` 使用运行时无关的
+  `DeviceNode.call_device_action`，驱动不直接调用 ROS API。
 
-## 包含的设备
+## 从 GitHub 安装
 
-| 设备 class        | 类                | 模式 | 角色                                                              |
-| ----------------- | ----------------- | ---- | ----------------------------------------------------------------- |
-| `serial_mock`     | `MockSerialDevice`| B1   | 模拟串口端点（内存模拟读写），用默认方法名 `send_command`/`read_data` |
-| `echo_reader`     | `EchoReaderDevice`| B1   | 使用方设备，其 `send_command`/`read_data` 被代理到 `serial_mock` |
-| `io_mock_modbus`  | `MockModbusBus`   | B2   | 模拟 Modbus 端点，使用**自定义**方法名 `write_io_coil`/`read_io_coil` |
-| `modbus_sensor`   | `ModbusSensor`    | B2   | 共享总线的使用方，声明 `extra_info=["slave_id"]`，每次调用自动注入自身 `slave_id` |
-| `demo_workstation`| `DemoWorkstation` | —    | 组合上述全部子设备的工作站，提供 `run_demo` 动作                 |
-
-## 前置条件
+Uni-Lab-OS 支持普通 GitHub 仓库链接和可选的固定 ref：
 
 ```bash
-mamba activate unilab          # ROS 2 (humble) + unilabos 环境
-cd <repo-root>                 # 所有命令均在 Uni-Lab-OS 仓库根目录执行
+unilab package install https://github.com/Xuwznln/LabDeviceWorkstationDemo --ref <commit-sha>
 ```
 
-> **凭据是必填的。** `unilabos.app.main` 在未提供 `--ak` / `--sk` 时会立即退出（它需要一个云端
-> 实验室）。可复用 IDE「test」运行配置里的 AK/SK/addr（或你在 <https://leap-lab.bohrium.com>
-> 注册的账号）。`--upload_registry` 是唯一可选的云端参数（用于上报注册表，想更快启动可去掉）。
-> **没有完全离线模式**——`--ak/--sk/--addr` 必须始终带上。
-
----
-
-## 代理工作原理
-
-`ROS2WorkstationNode` 启动子设备时分两轮：
-
-1. **初始化所有子设备**：id 以 `serial_` / `io_` 开头的会被登记为 *通信端点*。
-2. **代理替换**：对每个子设备读取其 `_hardware_interface = {name, read, write, extra_info}`：
-   - 取 `getattr(driver, name)`（这里 `name="hardware_interface"`）的值；
-   - 若该值是字符串且正好等于某个通信端点的 id，则把本设备的 `read` / `write` 方法
-     **替换** 为端点对应的方法；
-   - 此外，使用方 `extra_info` 里列出的每个名字会在**调用时**从使用方实例上取值，
-     并作为关键字参数注入到端点的读写函数（这正是每设备 `slave_id` 随调用携带的原理）。
-
-角色区分：
-
-| 角色       | `hardware_interface.name`                       | `read` / `write`                                        | `extra_info`                       |
-| ---------- | ----------------------------------------------- | ------------------------------------------------------- | ---------------------------------- |
-| 通信端点   | 设为 `None`（保证自身不被代理）                 | **必须指向自己真实的 IO 方法**（或用默认名 `send_command`/`read_data` 并省略该参数） | 它能接收的 kwargs（如 `slave_id`） |
-| 使用方     | 一个保存端点 id 的属性（如 `self.hardware_interface = "serial_mock"`） | 自身上被代理替换掉的方法名                              | 自身上每次调用要注入的属性（如 `["slave_id"]`） |
-
-> **使用非默认方法名的端点【必须】声明 `hardware_interface`。** `serial_mock` 用的是默认名
-> （`send_command`/`read_data`）可省略；但 `io_mock_modbus` 用 `write_io_coil`/`read_io_coil`，
-> 所以**必须**显式声明——否则代理会回退到默认名 `send_command`/`read_data` 而报
-> `AttributeError`。（框架会打印清晰错误并跳过该绑定，而不是让整个工作站崩溃；但在你声明
-> 真实方法名之前，该绑定仍不会生效。）
-> **代理绑定只依赖 `config`（`port`/端点 id 的取值）匹配，与图的 `links` 无关。** 随包的图
-> `"links": []`。
-
-### B1 — 共享串口
-
-- `serial_mock` 暴露 `send_command`(write) / `read_data`(read)，id 以 `serial_` 开头；
-- `echo_reader.__init__` 里 `self.hardware_interface = port`，图文件中 `port = "serial_mock"`；
-- 启动后 `echo_reader.send_command` / `read_data` 被代理到 `serial_mock`，实现“多个设备共享一个串口”。
-
-### B2 — `extra_info` 注入（Modbus slave_id）
-
-- `io_mock_modbus` 是端点，其 `write_io_coil(coil, value, slave_id=None)` /
-  `read_io_coil(coil, slave_id=None)` 接收 `slave_id` 关键字参数；
-- `modbus_sensor` 声明 `extra_info=["slave_id"]`，并从图 `config` 设置 `self.slave_id`
-  （`modbus_sensor_a` → 3、`modbus_sensor_b` → 7）；
-- 被代理的 `write_io_coil` / `read_io_coil` 触发时，工作站会把使用方当前的 `self.slave_id`
-  以 `slave_id=<值>` 注入。于是共享同一条总线的两个传感器，各自自动带上自己的从站号。
-
----
-
-## 启动教学（单进程，自带 `-g` 图文件）
-
-任选一个空闲端口（这里用 `8100`）。端点 id 与代理绑定都来自图的 `config`，无需 `links`。
+本地开发可使用：
 
 ```bash
-python -m unilabos.app.main \
-  --devices ./device_package_workstation_demo/workstation_demo \
-  --external_devices_only \
-  --ak <你的AK> --sk <你的SK> --addr test --upload_registry \
-  --disable_browser --port 8100 \
-  -g ./device_package_workstation_demo/graph/workstation_demo.json
+git clone https://github.com/Xuwznln/LabDeviceWorkstationDemo.git
+cd LabDeviceWorkstationDemo
+python -m pip install -e .
 ```
 
-当日志显示五个子设备全部初始化，并出现以下两行时即启动正常：
+本地演示不需要 AK/SK，也不依赖云端实验室。
 
-```
-[Uvicorn] Uvicorn running on http://0.0.0.0:8100
-[WebSocketClient] Host node ready signal published with 2 devices
-```
+## 有终止条件的双运行时 smoke
 
-## 试运行动作（已实测）
-
-动作提交到本地 HTTP 接口 `POST /api/v1/job/add`，请求体为
-`{device_id, action, sample_material:{}, action_args:{...}}`。
-
-> ⚠️ **动作参数不要起名 `command`。** `job/add` 接口会把 `action_args.command` 当作"裸指令字符串"
-> 拆包，从而破坏经通用 `_execute_driver_command` 通道转发的动作（它们要求 dict）。这正是
-> `run_demo` / `query` 用参数名 `cmd` 的原因。
-
-**Windows PowerShell（Invoke-RestMethod）：**
-
-```powershell
-$base = "http://127.0.0.1:8100/api/v1/job/add"
-function Run-Action($id,$act,$args){ Invoke-RestMethod -Uri $base -Method Post -ContentType "application/json" -Body (@{device_id=$id;action=$act;sample_material=@{};action_args=$args}|ConvertTo-Json -Compress) }
-
-Run-Action "DemoWorkstation" "run_demo" @{ cmd="PING" }      # B1 串口（经工作站）
-Run-Action "echo_reader"     "query"    @{ cmd="ID?" }       # B1 串口（直接调使用方）
-Run-Action "modbus_sensor_a" "probe"    @{ coil=0; value=1 } # B2 extra_info，slave_id=3
-Run-Action "modbus_sensor_b" "probe"    @{ coil=2; value=1 } # B2 extra_info，slave_id=7
-```
-
-**Linux/macOS（或 Windows `curl.exe`）：**
+以下两条命令读取完全相同的 `graph/workstation_demo.json`，执行真实设备动作，写出终态
+JSON 后自动关闭运行时：
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/v1/job/add \
-  -H "Content-Type: application/json" \
-  -d '{"device_id":"modbus_sensor_a","action":"probe","sample_material":{},"action_args":{"coil":0,"value":1}}'
+python -m workstation_demo.smoke --backend hostlink --timeout 30
+python -m workstation_demo.smoke --backend ros2 --timeout 60
 ```
 
-每次调用返回 `{"code":0,"data":{"status":1,...}}`（已受理）。真正的结果在服务端日志里：
+终态证明会断言串口动作返回 `PONG`，并断言同一条 Modbus 总线分别收到
+`slave_id=3` 与 `slave_id=7`，不是依靠无限运行日志人工判断。仓库 CI 还会执行注册表扫描、
+HostLink pytest smoke 和 ROS2 smoke，并固定到已验证的 Uni-Lab-OS revision。
 
-```
-# B1 —— echo_reader 的收发被代理到 serial_mock
-[MockSerial] PING -> PONG
-[DemoWorkstation] PING -> PONG
-[MockSerial] ID? -> MOCK-SERIAL-v1
+## 手动启动
 
-# B2 —— 每个传感器把自己的 slave_id 注入到共享总线
-[MockModbus] WRITE slave=3 coil=0 value=1     # modbus_sensor_a
-[MockModbus] READ  slave=3 coil=0 -> 1
-[MockModbus] WRITE slave=7 coil=2 value=1     # modbus_sensor_b
-[MockModbus] READ  slave=7 coil=2 -> 1
-```
-
-来自**同一条** `io_mock_modbus` 总线却出现不同的 `slave=3` / `slave=7`，就是 `extra_info`
-把各使用方自身属性注入进去的现场证据。
-
-## 停止
-
-对进程按 `Ctrl+C`（或 kill 对应 PID）。
-
----
-
-## 本地验证（注册表 check，不启动）
+在本仓库根目录选择任一 backend：
 
 ```bash
-cd device_package_workstation_demo
-unilab --check_mode --devices ./workstation_demo --external_devices_only
+python -m unilabos --backend hostlink --skip_env_check \
+  --devices ./workstation_demo --external_devices_only \
+  --visual disable --disable_browser \
+  -g ./graph/workstation_demo.json
+
+python -m unilabos --backend ros2 --disable_hostlink --skip_env_check \
+  --devices ./workstation_demo --external_devices_only \
+  --visual disable --disable_browser \
+  -g ./graph/workstation_demo.json
 ```
 
-## 常见问题
+## `hardware_interface` 约定
 
-- 启动后立刻退出并提示「请前往 … 注册实验室」：`--ak/--sk` 缺失或无效。它们是必填的（见前置条件）。
-- `'<端点>' object has no attribute 'send_command'`：通信端点用了自定义方法名却没声明
-  `hardware_interface` 的真实 `read`/`write`。补上声明。
-- `执行动作时JSON必须为dict`：你给动作起了名为 `command` 的参数（会被拆包）。改名即可（如 `cmd`）。
-- 端口被占用：换一个 `--port`。
+所选工作站运行节点先初始化全部子设备，再把使用方声明的读写方法绑定到
+`hardware_interface` 属性指向的通信端点。`extra_info` 中的字段会在调用时从使用方实例
+读取并注入端点调用，所以两个 Modbus 使用方虽共享总线，仍会分别带上从站号 3 和 7。
 
-## 目录结构
+使用非默认方法名的端点必须显式声明方法。`serial_mock` 使用默认的
+`send_command`/`read_data`；`io_mock_modbus` 声明
+`write_io_coil`/`read_io_coil`。绑定取决于图中 `config` 的端点 ID，不依赖图的 links。
 
-```
-device_package_workstation_demo/
-├── README.md                     # English
-├── README_zh.md                  # 中文（本文件）
-├── requirements.txt
-├── pyproject.toml
-├── .gitignore
-├── .github/workflows/check_registry.yml
-├── graph/
-│   └── workstation_demo.json     # 工作站图文件（串口 + modbus 子设备）
-└── workstation_demo/             # 被 --devices 扫描的 python 包
-    ├── __init__.py
-    ├── mock_serial.py            # MockSerialDevice（B1 端点）
-    ├── echo_reader.py            # EchoReaderDevice（B1 使用方）
-    ├── mock_modbus_bus.py        # MockModbusBus（B2 端点）
-    ├── modbus_sensor.py          # ModbusSensor（B2 使用方，extra_info=slave_id）
-    └── demo_workstation.py       # DemoWorkstation（工作站）
+## Workflow 与 HTTP 边界
+
+本演示不再使用旧 `POST /api/v1/job/add`。正式部署应向 Backend Workflow Authority 提交：
+
+- `POST /api/v1/workflows` 创建 Workflow 定义；
+- `PUT /api/v1/workflows/{uuid}/graph` 保存 canonical graph；
+- `POST /api/v1/workflow-tasks` 创建一次运行；
+- `GET /api/v1/workflow-tasks/{uuid}` 与
+  `GET /api/v1/workflow-tasks/{uuid}/jobs` 读取终态和节点任务。
+
+默认 Edge 微后端有意不挂载 Workflow Authority。同源网关应把上述 workflow 路径转发给
+Backend Authority，把 runtime/materials/telemetry/history 转发给 Edge。`control.v1`
+WebSocket 只发送 UUID/cursor 等失效通知；Edge 必须再通过强类型 HTTP 拉取命令或工作流正文。
+
+## 目录
+
+```text
+graph/workstation_demo.json       两种 backend 共用的一份图
+workstation_demo/
+  demo_workstation.py             运行时无关的工作站动作
+  mock_serial.py / echo_reader.py 共享串口端点与使用方
+  mock_modbus_bus.py               共享 Modbus 端点
+  modbus_sensor.py                 自动注入 slave_id 的使用方
+  smoke.py                         有终止条件的真实运行时证明
+tests/test_hostlink_smoke.py       HostLink 集成断言
 ```
