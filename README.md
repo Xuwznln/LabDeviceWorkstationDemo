@@ -52,8 +52,10 @@ The proof checks all of the following, rather than relying on an endless log:
 }
 ```
 
-The repository CI also runs the registry scan, HostLink pytest smoke, and ROS2
-smoke against a pinned Uni-Lab-OS revision.
+CI installs this repository through the ordinary GitHub URL plus the exact commit SHA, changes
+to a directory outside the checkout, and runs the registry scan plus both smoke commands in one
+Jazzy job. A scheduled run checks Uni-Lab-OS `dev` at 08:00 Beijing time each day and only repeats
+the full smoke when that branch has a new SHA (failed SHAs are retried).
 
 ## Manual launch
 

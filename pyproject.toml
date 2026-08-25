@@ -16,3 +16,6 @@ dev = ["unilabos", "pytest>=8"]
 
 [tool.setuptools.packages.find]
 include = ["workstation_demo*"]
+
+[tool.setuptools.data-files]
+"share/workstation_demo/graph" = ["graph/*.json"]

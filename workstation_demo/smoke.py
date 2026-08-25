@@ -9,6 +9,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import time
 from typing import Any, Sequence
@@ -66,6 +67,24 @@ def _stop(process: subprocess.Popen[Any]) -> None:
         process.wait(timeout=5)
 
 
+def _graph_path(repo_root: Path) -> Path:
+    """优先读取 wheel 安装的数据文件，editable/source 模式回退到仓库 graph。"""
+
+    installed = (
+        Path(sysconfig.get_path("data"))
+        / "share"
+        / "workstation_demo"
+        / "graph"
+        / "workstation_demo.json"
+    )
+    if installed.is_file():
+        return installed
+    source = repo_root / "graph" / "workstation_demo.json"
+    if source.is_file():
+        return source
+    raise FileNotFoundError("Workstation demo graph 未随 distribution 安装")
+
+
 def _base_command(
     repo_root: Path,
     database_root: Path,
@@ -101,7 +120,7 @@ def _base_command(
         "--config",
         str(config_path),
         "-g",
-        str(repo_root / "graph" / "workstation_demo.json"),
+        str(_graph_path(repo_root)),
     ]
     if backend == "ros2":
         command.append("--disable_hostlink")

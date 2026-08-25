@@ -39,8 +39,10 @@ python -m workstation_demo.smoke --backend ros2 --timeout 60
 ```
 
 终态证明会断言串口动作返回 `PONG`，并断言同一条 Modbus 总线分别收到
-`slave_id=3` 与 `slave_id=7`，不是依靠无限运行日志人工判断。仓库 CI 还会执行注册表扫描、
-HostLink pytest smoke 和 ROS2 smoke，并固定到已验证的 Uni-Lab-OS revision。
+`slave_id=3` 与 `slave_id=7`，不是依靠无限运行日志人工判断。CI 会通过普通 GitHub URL
+加当前精确提交 SHA 安装本仓库，切到 checkout 之外的临时目录，在同一个 Jazzy job 中执行
+注册表扫描、HostLink 和 ROS2 smoke。每天北京时间 08:00 检查 Uni-Lab-OS `dev`，仅在
+出现新 SHA 时重跑；失败的 SHA 次日继续重试。
 
 ## 手动启动
 
