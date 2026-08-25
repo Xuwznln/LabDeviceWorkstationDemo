@@ -83,7 +83,9 @@ class DemoWorkstation(WorkstationBase):
         Args:
             cmd[指令]: 要发送的 ASCII 指令，例如 PING / ID? / STATUS?。
         """
+        status_before = self._status
         self._status = "Running"
+        status_during = self._status
         try:
             result = self._device_node.call_device_action(
                 "echo_reader",
@@ -95,7 +97,12 @@ class DemoWorkstation(WorkstationBase):
         finally:
             self._status = "Idle"
         self.logger.info(f"[DemoWorkstation] {cmd} -> {response}")
-        return {"success": True, "command": cmd, "response": response}
+        return {
+            "success": True,
+            "command": cmd,
+            "response": response,
+            "status_transition": [status_before, status_during, self._status],
+        }
 
     @not_action
     def _write_smoke_proof(self, proof_file: Path) -> None:
@@ -117,6 +124,10 @@ class DemoWorkstation(WorkstationBase):
                 {"coil": 2, "value": 1},
                 timeout=15.0,
             )
+            serial_endpoint = self._device_node.sub_devices["serial_mock"].driver_instance
+            modbus_endpoint = self._device_node.sub_devices["io_mock_modbus"].driver_instance
+            sensor_a_driver = self._device_node.sub_devices["modbus_sensor_a"].driver_instance
+            sensor_b_driver = self._device_node.sub_devices["modbus_sensor_b"].driver_instance
             proof = {
                 "success": True,
                 "backend": self._device_node.backend_name,
@@ -125,6 +136,18 @@ class DemoWorkstation(WorkstationBase):
                 "modbus_sensor_b": sensor_b,
                 "shared_serial_endpoint": "serial_mock",
                 "shared_modbus_endpoint": "io_mock_modbus",
+                "workstation_status": self.status,
+                "serial_endpoint_state": {
+                    "last_response": serial_endpoint.last_response,
+                    "command_count": serial_endpoint.command_count,
+                },
+                "modbus_endpoint_state": {
+                    "op_count": modbus_endpoint.op_count,
+                },
+                "sensor_state": {
+                    "modbus_sensor_a": sensor_a_driver.last_value,
+                    "modbus_sensor_b": sensor_b_driver.last_value,
+                },
             }
         except Exception as exc:  # pragma: no cover - 子进程 smoke 会报告完整错误
             self.logger.exception("工作站 smoke 执行失败")

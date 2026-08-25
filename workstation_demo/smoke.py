@@ -14,6 +14,41 @@ import time
 from typing import Any, Sequence
 
 
+def assert_smoke_proof(proof: dict[str, Any], backend: str) -> None:
+    """对 HostLink/ROS2 共用的状态变化、动作参数和端点结果做同一组断言。"""
+
+    assert proof.get("success") is True, f"smoke 未成功: {proof}"
+    assert proof.get("backend") == backend, f"backend 不匹配: {proof}"
+    assert proof["serial"] == {
+        "success": True,
+        "command": "PING",
+        "response": "PONG",
+        "status_transition": ["Idle", "Running", "Idle"],
+    }
+    assert proof["modbus_sensor_a"] == {
+        "success": True,
+        "slave_id": 3,
+        "result": {"slave_id": 3, "coil": 0, "value": 1},
+    }
+    assert proof["modbus_sensor_b"] == {
+        "success": True,
+        "slave_id": 7,
+        "result": {"slave_id": 7, "coil": 2, "value": 1},
+    }
+    assert proof["shared_serial_endpoint"] == "serial_mock"
+    assert proof["shared_modbus_endpoint"] == "io_mock_modbus"
+    assert proof["workstation_status"] == "Idle"
+    assert proof["serial_endpoint_state"] == {
+        "last_response": "PONG",
+        "command_count": 1,
+    }
+    assert proof["modbus_endpoint_state"] == {"op_count": 4}
+    assert proof["sensor_state"] == {
+        "modbus_sensor_a": 1,
+        "modbus_sensor_b": 1,
+    }
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind(("127.0.0.1", 0))
@@ -140,10 +175,7 @@ def run_smoke(
                                     encoding="utf-8", errors="replace"
                                 )
                             )
-                        if proof.get("backend") != backend:
-                            raise RuntimeError(
-                                f"unexpected backend proof: {proof}"
-                            )
+                        assert_smoke_proof(proof, backend)
                         return proof
                     if process.poll() is not None:
                         break
