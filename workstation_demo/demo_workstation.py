@@ -31,7 +31,7 @@ from unilabos.registry.decorators import action, device, not_action, topic_confi
     id="demo_workstation",
     category=["workstation"],
     description="演示工作站 — 共享串口 + 共享 Modbus 总线 (hardware_interface 代理)",
-    displayname="演示工作站",
+    display_name="演示工作站",
     supported_backends=["hostlink", "ros2"],
 )
 class DemoWorkstation(WorkstationBase):

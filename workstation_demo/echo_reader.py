@@ -27,7 +27,7 @@ from unilabos.registry.decorators import (
     id="echo_reader",
     category=["sensor"],
     description="回显读取设备 — 通过共享串口 (hardware_interface 代理) 收发指令",
-    displayname="回显读取设备",
+    display_name="回显读取设备",
     supported_backends=["hostlink", "ros2"],
     hardware_interface=HardwareInterface(
         name="hardware_interface",

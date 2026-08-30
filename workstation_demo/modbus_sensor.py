@@ -26,7 +26,7 @@ from unilabos.registry.decorators import (
     id="modbus_sensor",
     category=["sensor"],
     description="Modbus 传感器 — 通过共享总线 + extra_info(slave_id) 收发",
-    displayname="Modbus传感器",
+    display_name="Modbus传感器",
     supported_backends=["hostlink", "ros2"],
     hardware_interface=HardwareInterface(
         name="hardware_interface",

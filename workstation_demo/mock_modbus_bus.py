@@ -21,7 +21,7 @@ from unilabos.registry.decorators import HardwareInterface, device, topic_config
     id="io_mock_modbus",
     category=["communication_devices"],
     description="模拟 Modbus 总线 — 演示 extra_info(slave_id) 注入",
-    displayname="模拟Modbus总线",
+    display_name="模拟Modbus总线",
     supported_backends=["hostlink", "ros2"],
     hardware_interface=HardwareInterface(
         name="hardware_interface",

@@ -21,7 +21,7 @@ from unilabos.registry.decorators import device, topic_config
     id="serial_mock",
     category=["communication_devices"],
     description="模拟串口设备 — 内存模拟读写，供工作站内其它设备共享",
-    displayname="模拟串口",
+    display_name="模拟串口",
     supported_backends=["hostlink", "ros2"],
 )
 class MockSerialDevice:
