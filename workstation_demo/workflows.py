@@ -9,7 +9,8 @@ host 启动时由主仓 AST 扫描发现本模块（@workflow），import 后按
 - ``ctx.run("modbus_sensor_a/probe")``：modbus_sensor 类有 A/B 两个实例，
   必须显式指定 device_id（run_template 会因歧义报错）。
 
-三步分属三个设备且无连线，可并发调度；断言只看各自返回值。
+三步分属三个设备，按声明序串行执行（execution_policy.depends_on 依赖边）；
+断言只看各自返回值。
 """
 
 from unilabos.registry.workflows import WorkflowBuildContext, workflow

@@ -107,10 +107,11 @@ management HTTP API:
   `GET /api/v1/workflow-tasks/{uuid}/jobs` read terminal state and each node
   job's `return_info`.
 
-The three nodes live on three devices with no edges, so they may dispatch
-concurrently; assertions only check each returned value (serial loopback `PONG`,
-bus-level `slave_id=3/7` injection). The obsolete `POST /api/v1/job/add` is not
-used.
+Declarative `@workflow` steps run strictly serially: each node's
+`execution_policy.depends_on` points at the previous step and the scheduler
+turns it into DAG dependency edges. Assertions only check each returned value
+(serial loopback `PONG`, bus-level `slave_id=3/7` injection). The obsolete
+`POST /api/v1/job/add` is not used.
 
 ## Package layout
 

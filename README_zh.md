@@ -88,7 +88,8 @@ Workflow Authority。smoke 的阶段二通过管理 HTTP API 检索并真实运�
 - `GET /api/v1/workflow-tasks/{uuid}` 与
   `GET /api/v1/workflow-tasks/{uuid}/jobs` 读取终态和每个节点 job 的 `return_info`。
 
-三个节点分属三个设备且无连线，可并发调度；断言只校验各自返回值
+声明式 `@workflow` 步骤严格串行：每步节点的 `execution_policy.depends_on`
+指向上一步，调度器翻译成 DAG 依赖边；断言只校验各自返回值
 （串口回环 `PONG`、总线分别注入 `slave_id=3/7`）。旧 `POST /api/v1/job/add` 不再使用。
 
 ## 目录
