@@ -74,7 +74,7 @@ class ModbusSensor:
         """默认读实现 (未接入工作站代理时的兜底)；接入后被替换为总线实现并自动带 slave_id。"""
         return {}
 
-    @action(description="写一个线圈再读回，返回总线应答(含自动注入的 slave_id)")
+    @action(display_name="线圈探测", description="写一个线圈再读回，返回总线应答(含自动注入的 slave_id)")
     def probe(self, coil: int = 0, value: int = 1) -> Dict[str, Any]:
         """演示：写线圈 -> 读线圈。返回里能看到本设备 slave_id 被自动带到了总线。
 

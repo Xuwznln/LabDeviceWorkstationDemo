@@ -70,19 +70,26 @@ python -m unilabos --backend ros2 --disable_hostlink --skip_env_check \
 `send_command`/`read_data`；`io_mock_modbus` 声明
 `write_io_coil`/`read_io_coil`。绑定取决于图中 `config` 的端点 ID，不依赖图的 links。
 
-## Workflow 与 HTTP 边界
+## 默认子工作流与 HTTP 边界
 
-本演示不再使用旧 `POST /api/v1/job/add`。正式部署应向 Backend Workflow Authority 提交：
+`workstation_demo/workflows.py` 用主仓的 `@workflow` 装饰器声明了「工作站演示流水」，
+对照演示两种寻址方式：
 
-- `POST /api/v1/workflows` 创建 Workflow 定义；
-- `PUT /api/v1/workflows/{uuid}/graph` 保存 canonical graph；
-- `POST /api/v1/workflow-tasks` 创建一次运行；
+- `ctx.run_template("demo_workstation/run_demo")`：该设备类在图中只有一个实例，
+  构建时自动填充 device_id，无需确认；
+- `ctx.run("modbus_sensor_a/probe")` / `ctx.run("modbus_sensor_b/probe")`：
+  `modbus_sensor` 类有两个实例，必须显式指定实例。
+
+host 启动时 AST 扫描发现该模块，按函数相对路径派生稳定 uuid 幂等上报到本机
+Workflow Authority。smoke 的阶段二通过管理 HTTP API 检索并真实运行它：
+
+- `GET /api/v1/workflows` 按显示名检索上报结果；
+- `POST /api/v1/workflow-tasks` 创建一次运行（`{"workflow_uuid": ..., "run_mode": "normal"}`）；
 - `GET /api/v1/workflow-tasks/{uuid}` 与
-  `GET /api/v1/workflow-tasks/{uuid}/jobs` 读取终态和节点任务。
+  `GET /api/v1/workflow-tasks/{uuid}/jobs` 读取终态和每个节点 job 的 `return_info`。
 
-默认 Edge 微后端有意不挂载 Workflow Authority。同源网关应把上述 workflow 路径转发给
-Backend Authority，把 runtime/materials/telemetry/history 转发给 Edge。`control.v1`
-WebSocket 只发送 UUID/cursor 等失效通知；Edge 必须再通过强类型 HTTP 拉取命令或工作流正文。
+三个节点分属三个设备且无连线，可并发调度；断言只校验各自返回值
+（串口回环 `PONG`、总线分别注入 `slave_id=3/7`）。旧 `POST /api/v1/job/add` 不再使用。
 
 ## 目录
 

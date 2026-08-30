@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 from pylabrobot.resources import Deck
 
 from unilabos.devices.workstation.workstation_base import WorkstationBase
-from unilabos.device_runtime import DeviceNode
+from unilabos.backend.runtime.node import DeviceNode
 from unilabos.registry.decorators import action, device, not_action, topic_config
 
 
@@ -76,7 +76,7 @@ class DemoWorkstation(WorkstationBase):
             raise RuntimeError("子设备 echo_reader 未初始化")
         return sub.driver_instance
 
-    @action(description="通过共享串口发送指令并返回应答")
+    @action(display_name="运行串口演示", description="通过共享串口发送指令并返回应答")
     def run_demo(self, cmd: str = "PING") -> Dict[str, Any]:
         """触发 echo_reader 通过共享的模拟串口收发一条指令。
 

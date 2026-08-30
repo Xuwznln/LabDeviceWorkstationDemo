@@ -72,7 +72,7 @@ class EchoReaderDevice:
         """默认读实现 (未接入工作站代理时的兜底)；接入后被替换为通信设备实现。"""
         return ""
 
-    @action(description="发送指令并读取应答")
+    @action(display_name="串口查询", description="发送指令并读取应答")
     def query(self, cmd: str = "PING") -> Dict[str, Any]:
         """通过共享串口发送一条指令并返回应答。
 

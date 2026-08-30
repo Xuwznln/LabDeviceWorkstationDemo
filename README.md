@@ -86,22 +86,31 @@ Endpoints using non-default method names must declare them explicitly.
 declares `write_io_coil`/`read_io_coil`. The binding is driven by graph `config`
 values, not graph links.
 
-## Workflow and HTTP boundary
+## Default sub-workflow and HTTP boundary
 
-The obsolete `POST /api/v1/job/add` endpoint is not used. In a deployed system,
-submit definitions and runs to the Backend Workflow Authority:
+`workstation_demo/workflows.py` declares the "工作站演示流水" workflow with the
+core `@workflow` decorator, contrasting the two addressing modes:
 
-- `POST /api/v1/workflows` creates a workflow definition;
-- `PUT /api/v1/workflows/{uuid}/graph` stores its canonical graph;
-- `POST /api/v1/workflow-tasks` starts one run;
+- `ctx.run_template("demo_workstation/run_demo")`: this device class has exactly
+  one instance in the graph, so the device_id is auto-filled at build time;
+- `ctx.run("modbus_sensor_a/probe")` / `ctx.run("modbus_sensor_b/probe")`: the
+  `modbus_sensor` class has two instances, so explicit instance ids are required.
+
+On host startup the AST scan discovers the module and the definition is
+upserted into the local Workflow Authority under a stable uuid derived from the
+function path. Stage two of the smoke locates and really runs it over the
+management HTTP API:
+
+- `GET /api/v1/workflows` finds the reported definition by display name;
+- `POST /api/v1/workflow-tasks` starts one run (`{"workflow_uuid": ..., "run_mode": "normal"}`);
 - `GET /api/v1/workflow-tasks/{uuid}` and
-  `GET /api/v1/workflow-tasks/{uuid}/jobs` read terminal state and node jobs.
+  `GET /api/v1/workflow-tasks/{uuid}/jobs` read terminal state and each node
+  job's `return_info`.
 
-The default Edge microbackend intentionally does not mount this Workflow
-Authority. A same-origin gateway should route the workflow paths above to the
-Backend Authority and runtime/materials/telemetry/history paths to the Edge.
-`control.v1` WebSocket messages are UUID/cursor invalidation notices only; the
-Edge fetches command and workflow bodies over typed HTTP before executing them.
+The three nodes live on three devices with no edges, so they may dispatch
+concurrently; assertions only check each returned value (serial loopback `PONG`,
+bus-level `slave_id=3/7` injection). The obsolete `POST /api/v1/job/add` is not
+used.
 
 ## Package layout
 
