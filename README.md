@@ -1,4 +1,4 @@
-# UniLabOS Workstation Demo
+# Uni-Lab-OS Workstation Demo
 
 **English** | [中文](README_zh.md)
 
