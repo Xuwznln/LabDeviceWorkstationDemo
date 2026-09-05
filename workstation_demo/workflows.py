@@ -9,8 +9,9 @@ host 启动时由主仓 AST 扫描发现本模块（@workflow），import 后按
 - ``ctx.run("modbus_sensor_a/probe")``：modbus_sensor 类有 A/B 两个实例，
   必须显式指定 device_id（run_template 会因歧义报错）。
 
-三步分属三个设备，按声明序串行执行（execution_policy.depends_on 依赖边）；
-断言只看各自返回值。
+四步分属三个设备，按声明序串行执行（execution_policy.depends_on 依赖边）；
+末步 ``inspect_endpoints`` 读出共享端点的累计计数，断言只看各自返回值。
+设备启动后不自跑任何动作，全部由本工作流经管理 API 触发。
 """
 
 from unilabos.registry.workflows import WorkflowBuildContext, workflow
@@ -21,7 +22,7 @@ DEMO_PIPELINE_WORKFLOW_NAME = "工作站演示流水"
 
 @workflow(
     display_name=DEMO_PIPELINE_WORKFLOW_NAME,
-    description="共享串口回环（类名自动解析单实例）+ 双 Modbus 传感器探测（显式实例）",
+    description="共享串口回环（类名自动解析单实例）+ 双 Modbus 传感器探测（显式实例）+ 共享端点计数核对",
     tags=["workstation-demo", "shared-endpoint"],
 )
 def demo_pipeline(ctx: WorkflowBuildContext) -> None:
@@ -30,3 +31,4 @@ def demo_pipeline(ctx: WorkflowBuildContext) -> None:
     ctx.run_template("demo_workstation/run_demo", {"cmd": "PING"}, name="串口回环")
     ctx.run("modbus_sensor_a/probe", {"coil": 0, "value": 1}, name="传感器A探测")
     ctx.run("modbus_sensor_b/probe", {"coil": 2, "value": 1}, name="传感器B探测")
+    ctx.run_template("demo_workstation/inspect_endpoints", {}, name="端点状态")

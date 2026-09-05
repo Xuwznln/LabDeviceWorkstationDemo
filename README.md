@@ -32,25 +32,32 @@ No AK/SK or cloud laboratory is required for the local demo.
 
 ## Deterministic dual-backend smoke
 
-Both commands load the same `graph/workstation_demo.json`, execute real device
-actions, write a terminal proof JSON, and stop the runtime automatically:
+Both commands load the same `graph/workstation_demo.json`, run the reported
+`@workflow` "工作站演示流水" through the management HTTP API (`POST
+/api/v1/workflow-tasks`), assert the four node results and stop the runtime
+automatically. Devices never act on their own; everything is workflow-driven:
 
 ```bash
-python -m workstation_demo.smoke --backend hostlink --timeout 30
-python -m workstation_demo.smoke --backend ros2 --timeout 60
+python -m workstation_demo.smoke --backend hostlink --timeout 60
+python -m workstation_demo.smoke --backend ros2 --timeout 120
 ```
 
-The proof checks all of the following, rather than relying on an endless log:
+The four node results checked, rather than relying on an endless log:
 
 ```json
 {
-  "success": true,
-  "backend": "hostlink",
-  "serial": {"success": true, "command": "PING", "response": "PONG"},
+  "run_demo":        {"success": true, "command": "PING", "response": "PONG", "status_transition": ["Idle", "Running", "Idle"]},
   "modbus_sensor_a": {"slave_id": 3, "result": {"slave_id": 3, "coil": 0, "value": 1}},
-  "modbus_sensor_b": {"slave_id": 7, "result": {"slave_id": 7, "coil": 2, "value": 1}}
+  "modbus_sensor_b": {"slave_id": 7, "result": {"slave_id": 7, "coil": 2, "value": 1}},
+  "inspect_endpoints": {"serial_endpoint_state": {"last_response": "PONG", "command_count": 1},
+                        "modbus_endpoint_state": {"op_count": 4},
+                        "sensor_state": {"modbus_sensor_a": 1, "modbus_sensor_b": 1}}
 }
 ```
+
+`inspect_endpoints` reads the shared endpoints' counters: one serial command and
+four Modbus operations (two probes, each a write plus a read) prove that one
+endpoint served several consumers.
 
 CI installs this repository through the ordinary GitHub URL plus the exact commit SHA, changes
 to a directory outside the checkout, and runs the registry scan plus both smoke commands in one

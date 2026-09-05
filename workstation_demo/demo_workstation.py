@@ -7,17 +7,16 @@
    - serial_mock (端点) <- echo_reader (使用方，默认方法名)；
    - io_mock_modbus (端点) <- modbus_sensor_a/b (使用方，extra_info 注入 slave_id)。
 3. 工作站动作 ``run_demo`` 通过 ``DeviceNode.call_device_action`` 调用 echo_reader，
-   串起整条链路：工作站 -> 子设备动作 -> (代理) -> serial_mock。
+   串起整条链路：工作站 -> 子设备动作 -> (代理) -> serial_mock；
+4. ``inspect_endpoints`` 读出两个共享端点与两台传感器的内部计数，作为「同一端点被
+   多个使用方共享」的可断言证据。
+
+设备启动后不自跑任何动作：全部由工作流（``workflows.py``）经管理 API 触发。
 
 注意：config 保留 ``protocol_type`` 字段（本演示用空列表），两种运行时读取同一配置。
 """
 
-import json
 import logging
-import os
-from pathlib import Path
-import threading
-import time
 from typing import Any, Dict, List, Optional
 
 from pylabrobot.resources import Deck
@@ -59,14 +58,6 @@ class DemoWorkstation(WorkstationBase):
     def post_init(self, device_node: DeviceNode) -> None:
         super().post_init(device_node)
         self._device_node = device_node
-        proof_file = os.environ.get("WORKSTATION_DEMO_PROOF_FILE")
-        if proof_file:
-            threading.Thread(
-                target=self._write_smoke_proof,
-                args=(Path(proof_file),),
-                name="workstation-demo-proof",
-                daemon=True,
-            ).start()
 
     @not_action
     def get_reader(self):
@@ -104,65 +95,38 @@ class DemoWorkstation(WorkstationBase):
             "status_transition": [status_before, status_during, self._status],
         }
 
-    @not_action
-    def _write_smoke_proof(self, proof_file: Path) -> None:
-        """在真实运行时中执行有限次动作，并原子写出可机读终态。"""
+    @action(
+        display_name="端点状态",
+        description="读出共享串口 / 共享 Modbus 端点与两台传感器的内部计数：同一端点被多个使用方共享的证据",
+        always_free=True,
+    )
+    def inspect_endpoints(self) -> Dict[str, Any]:
+        """汇报共享端点状态（工作流末步，供断言）。
 
-        delay = float(os.environ.get("WORKSTATION_DEMO_START_DELAY", "1.0"))
-        time.sleep(max(0.0, delay))
-        try:
-            serial = self.run_demo("PING")
-            sensor_a = self._device_node.call_device_action(
-                "modbus_sensor_a",
-                "probe",
-                {"coil": 0, "value": 1},
-                timeout=15.0,
-            )
-            sensor_b = self._device_node.call_device_action(
-                "modbus_sensor_b",
-                "probe",
-                {"coil": 2, "value": 1},
-                timeout=15.0,
-            )
-            serial_endpoint = self._device_node.sub_devices["serial_mock"].driver_instance
-            modbus_endpoint = self._device_node.sub_devices["io_mock_modbus"].driver_instance
-            sensor_a_driver = self._device_node.sub_devices["modbus_sensor_a"].driver_instance
-            sensor_b_driver = self._device_node.sub_devices["modbus_sensor_b"].driver_instance
-            proof = {
-                "success": True,
-                "backend": self._device_node.backend_name,
-                "serial": serial,
-                "modbus_sensor_a": sensor_a,
-                "modbus_sensor_b": sensor_b,
-                "shared_serial_endpoint": "serial_mock",
-                "shared_modbus_endpoint": "io_mock_modbus",
-                "workstation_status": self.status,
-                "serial_endpoint_state": {
-                    "last_response": serial_endpoint.last_response,
-                    "command_count": serial_endpoint.command_count,
-                },
-                "modbus_endpoint_state": {
-                    "op_count": modbus_endpoint.op_count,
-                },
-                "sensor_state": {
-                    "modbus_sensor_a": sensor_a_driver.last_value,
-                    "modbus_sensor_b": sensor_b_driver.last_value,
-                },
-            }
-        except Exception as exc:  # pragma: no cover - 子进程 smoke 会报告完整错误
-            self.logger.exception("工作站 smoke 执行失败")
-            proof = {
-                "success": False,
-                "backend": self._device_node.backend_name,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-        proof_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary = proof_file.with_suffix(proof_file.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(proof, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        temporary.replace(proof_file)
+        串口端点记录最近应答与累计指令数；Modbus 端点记录累计操作数（每次 probe = 写 + 读）；
+        两台传感器各记录自己最近读回的值。
+        """
+        subs = self._device_node.sub_devices
+        serial_endpoint = subs["serial_mock"].driver_instance
+        modbus_endpoint = subs["io_mock_modbus"].driver_instance
+        sensor_a_driver = subs["modbus_sensor_a"].driver_instance
+        sensor_b_driver = subs["modbus_sensor_b"].driver_instance
+        return {
+            "success": True,
+            "backend": self._device_node.backend_name,
+            "shared_serial_endpoint": "serial_mock",
+            "shared_modbus_endpoint": "io_mock_modbus",
+            "workstation_status": self.status,
+            "serial_endpoint_state": {
+                "last_response": serial_endpoint.last_response,
+                "command_count": serial_endpoint.command_count,
+            },
+            "modbus_endpoint_state": {"op_count": modbus_endpoint.op_count},
+            "sensor_state": {
+                "modbus_sensor_a": sensor_a_driver.last_value,
+                "modbus_sensor_b": sensor_b_driver.last_value,
+            },
+        }
 
     @property
     @topic_config()

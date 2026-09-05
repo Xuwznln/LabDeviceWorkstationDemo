@@ -30,16 +30,18 @@ python -m pip install -e .
 
 ## 有终止条件的双运行时 smoke
 
-以下两条命令读取完全相同的 `graph/workstation_demo.json`，执行真实设备动作，写出终态
-JSON 后自动关闭运行时：
+以下两条命令读取完全相同的 `graph/workstation_demo.json`，经管理 HTTP API 运行上报的
+`@workflow`「工作站演示流水」（`POST /api/v1/workflow-tasks`），断言四个节点结果后自动关闭
+运行时。设备启动后不自跑任何动作，全部由工作流触发：
 
 ```bash
-python -m workstation_demo.smoke --backend hostlink --timeout 30
-python -m workstation_demo.smoke --backend ros2 --timeout 60
+python -m workstation_demo.smoke --backend hostlink --timeout 60
+python -m workstation_demo.smoke --backend ros2 --timeout 120
 ```
 
-终态证明会断言串口动作返回 `PONG`，并断言同一条 Modbus 总线分别收到
-`slave_id=3` 与 `slave_id=7`，不是依靠无限运行日志人工判断。CI 会通过普通 GitHub URL
+断言串口动作返回 `PONG`、同一条 Modbus 总线分别收到 `slave_id=3` 与 `slave_id=7`，
+以及末步 `inspect_endpoints` 读出的共享端点计数（串口 1 条指令、Modbus 4 次操作 = 两次
+probe 各写 + 读），不是依靠无限运行日志人工判断。CI 会通过普通 GitHub URL
 加当前精确提交 SHA 安装本仓库，切到 checkout 之外的临时目录，在同一个 Jazzy job 中执行
 注册表扫描、HostLink 和 ROS2 smoke。每天北京时间 08:00 检查 Uni-Lab-OS `dev`，仅在
 出现新 SHA 时重跑；失败的 SHA 次日继续重试。
@@ -78,10 +80,12 @@ python -m unilabos --backend ros2 --disable_hostlink --skip_env_check \
 - `ctx.run_template("demo_workstation/run_demo")`：该设备类在图中只有一个实例，
   构建时自动填充 device_id，无需确认；
 - `ctx.run("modbus_sensor_a/probe")` / `ctx.run("modbus_sensor_b/probe")`：
-  `modbus_sensor` 类有两个实例，必须显式指定实例。
+  `modbus_sensor` 类有两个实例，必须显式指定实例；
+- `ctx.run_template("demo_workstation/inspect_endpoints")`：末步读出共享端点与传感器的
+  内部计数，作为"同一端点被多个使用方共享"的可断言证据。
 
 host 启动时 AST 扫描发现该模块，按函数相对路径派生稳定 uuid 幂等上报到本机
-Workflow Authority。smoke 的阶段二通过管理 HTTP API 检索并真实运行它：
+Workflow Authority。smoke 通过管理 HTTP API 检索并真实运行它：
 
 - `GET /api/v1/workflows` 按显示名检索上报结果；
 - `POST /api/v1/workflow-tasks` 创建一次运行（`{"workflow_uuid": ..., "run_mode": "normal"}`）；
@@ -90,7 +94,8 @@ Workflow Authority。smoke 的阶段二通过管理 HTTP API 检索并真实运�
 
 声明式 `@workflow` 步骤严格串行：每步节点的 `execution_policy.depends_on`
 指向上一步，调度器翻译成 DAG 依赖边；断言只校验各自返回值
-（串口回环 `PONG`、总线分别注入 `slave_id=3/7`）。旧 `POST /api/v1/job/add` 不再使用。
+（串口回环 `PONG`、总线分别注入 `slave_id=3/7`、端点计数 `command_count=1` / `op_count=4`）。
+旧 `POST /api/v1/job/add` 不再使用。
 
 ## 目录
 
