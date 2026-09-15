@@ -149,8 +149,6 @@ def _base_command(
         "-g",
         str(_graph_path(repo_root)),
     ]
-    if backend == "ros2":
-        command.append("--disable_hostlink")
     return command
 
 
@@ -185,7 +183,7 @@ def _api_request(
 
 
 def run_workflow_stage(management_port: int, timeout: float) -> dict[str, Any]:
-    """检索上报的默认子工作流 -> 创建任务 -> 等待成功 -> 汇总节点结果。"""
+    """检索模板 -> 显式实例化 -> 创建任务 -> 等待成功 -> 汇总节点结果。"""
 
     deadline = time.monotonic() + timeout
 
@@ -193,18 +191,23 @@ def run_workflow_stage(management_port: int, timeout: float) -> dict[str, Any]:
     while time.monotonic() < deadline:
         try:
             listing = _api_request(
-                management_port, "/workflows?page=1&page_size=50"
+                management_port, "/registry/workflow-templates"
             )
         except (urllib.error.URLError, OSError):
             time.sleep(0.3)
             continue
         matches = [
             item
-            for item in listing["items"]
-            if item["name"] == WORKFLOW_DISPLAY_NAME
+            for item in listing["templates"]
+            if item["display_name"] == WORKFLOW_DISPLAY_NAME
         ]
+        assert len(matches) <= 1, f"工作流模板显示名重复: {WORKFLOW_DISPLAY_NAME!r}"
         if matches:
-            workflow_uuid = matches[0]["uuid"]
+            instantiated = _api_request(
+                management_port, "/workflows/from-template",
+                {"template_uuid": matches[0]["uuid"], "bindings": {}},
+            )
+            workflow_uuid = instantiated["workflow"]["uuid"]
             break
         time.sleep(0.3)
     if not workflow_uuid:
@@ -304,14 +307,10 @@ def run_smoke(
             management_port,
             backend,
         )
-        if backend == "hostlink":
-            command += [
-                "--hostlink_bind",
-                "127.0.0.1",
-                "--hostlink_port",
-                str(hostlink_port),
-            ]
-        else:
+        command += [
+            "--hostlink_bind", "127.0.0.1", "--hostlink_port", str(hostlink_port),
+        ]
+        if backend == "ros2":
             domain_id = str(10 + hostlink_port % 190)
             environment["ROS_DOMAIN_ID"] = domain_id
             command += ["--ros_domain_id", domain_id]
