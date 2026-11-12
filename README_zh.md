@@ -12,10 +12,21 @@
 
 ## 从 GitHub 安装
 
-Uni-Lab-OS 支持普通 GitHub 仓库链接和可选的固定 ref：
+需要统一版 Uni-Lab-OS 核心（dev 架构 + V1.0 HTTP API），仅支持 **CPython 3.14**；配套 wheel
+（PyLabRobot 维护分支 `1.0.0b1+unilabos…` 与 `opentrons-shared-data 10.1.0+unilabos.np2.1`）
+用核心的 `scripts/build_wheel_release.py --dependencies-only` 构建，安装时经 `--find-links` 提供。
+ROS 2 运行使用为 cp314 构建的 RoboStack Jazzy（`ros2-distro-mutex` 0.20）。
+
+Host 运行时（`unilab --backend hostlink`）经管理 API 安装，来源是 GitHub 地址，可附 `@<commit-sha>`：
 
 ```bash
-unilab package install https://github.com/Xuwznln/LabDeviceWorkstationDemo --ref <commit-sha>
+unilab package install https://github.com/Xuwznln/LabDeviceWorkstationDemo@<commit-sha> --wait
+```
+
+也可以直接装进当前 Python 环境（CI 即如此）：
+
+```bash
+python -m pip install "git+https://github.com/Xuwznln/LabDeviceWorkstationDemo@<commit-sha>"
 ```
 
 本地开发可使用：
@@ -41,8 +52,9 @@ python -m workstation_demo.smoke --backend ros2 --timeout 120
 
 断言串口动作返回 `PONG`、同一条 Modbus 总线分别收到 `slave_id=3` 与 `slave_id=7`，
 以及末步 `inspect_endpoints` 读出的共享端点计数（串口 1 条指令、Modbus 4 次操作 = 两次
-probe 各写 + 读），不是依靠无限运行日志人工判断。CI 会通过普通 GitHub URL
-加当前精确提交 SHA 安装本仓库，切到 checkout 之外的临时目录，在同一个 Jazzy job 中执行
+probe 各写 + 读），不是依靠无限运行日志人工判断。CI（CPython 3.14，RoboStack Jazzy、
+`ros2-distro-mutex` 0.20）会通过普通 GitHub URL 加当前精确提交 SHA 安装本仓库，切到
+checkout 之外的临时目录，在同一个 Jazzy job 中执行
 注册表扫描、HostLink 和 ROS2 smoke。每天北京时间 08:00 检查 Uni-Lab-OS `dev`，仅在
 出现新 SHA 时重跑；失败的 SHA 次日继续重试。
 
@@ -85,9 +97,11 @@ python -m unilabos --backend ros2 --disable_hostlink --skip_env_check \
   内部计数，作为"同一端点被多个使用方共享"的可断言证据。
 
 host 启动时 AST 扫描发现该模块，按函数相对路径派生稳定 uuid 幂等上报到本机
-Workflow Authority。smoke 通过管理 HTTP API 检索并真实运行它：
+Workflow Authority。smoke 通过管理 HTTP API 检索并真实运行它（`/api/v1` 的 JSON 响应一律是
+V1 信封 `{"code": 0, "data": ...}`，写请求在 `X-UniLab-Token` 请求头携带控制面 token）：
 
-- `GET /api/v1/workflows` 按显示名检索上报结果；
+- `GET /api/v1/registry/workflow-templates` 按显示名检索上报的模板；
+- `POST /api/v1/workflows/from-template` 实例化（`{"template_uuid": ..., "bindings": {}}`）；
 - `POST /api/v1/workflow-tasks` 创建一次运行（`{"workflow_uuid": ..., "run_mode": "normal"}`）；
 - `GET /api/v1/workflow-tasks/{uuid}` 与
   `GET /api/v1/workflow-tasks/{uuid}/jobs` 读取终态和每个节点 job 的 `return_info`。
