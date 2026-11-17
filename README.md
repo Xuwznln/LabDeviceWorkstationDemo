@@ -120,7 +120,7 @@ On host startup the AST scan discovers the module and the definition is
 upserted into the local Workflow Authority under a stable uuid derived from the
 function path. Stage two of the smoke locates and really runs it over the
 management HTTP API (every `/api/v1` JSON response is the V1 envelope
-`{"code": 0, "data": ...}`; writes carry the control token in `X-UniLab-Token`):
+`{"code": 0, "data": ...}`):
 
 - `GET /api/v1/registry/workflow-templates` finds the reported template by display name;
 - `POST /api/v1/workflows/from-template` instantiates it (`{"template_uuid": ..., "bindings": {}}`);
