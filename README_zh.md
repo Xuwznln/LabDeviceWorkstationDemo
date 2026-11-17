@@ -98,7 +98,7 @@ python -m unilabos --backend ros2 --disable_hostlink --skip_env_check \
 
 host 启动时 AST 扫描发现该模块，按函数相对路径派生稳定 uuid 幂等上报到本机
 Workflow Authority。smoke 通过管理 HTTP API 检索并真实运行它（`/api/v1` 的 JSON 响应一律是
-V1 信封 `{"code": 0, "data": ...}`，写请求在 `X-UniLab-Token` 请求头携带控制面 token）：
+V1 信封 `{"code": 0, "data": ...}`）：
 
 - `GET /api/v1/registry/workflow-templates` 按显示名检索上报的模板；
 - `POST /api/v1/workflows/from-template` 实例化（`{"template_uuid": ..., "bindings": {}}`）；
