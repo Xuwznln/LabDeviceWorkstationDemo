@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 from pylabrobot.resources import Deck
 
 from unilabos.devices.workstation.workstation_base import WorkstationBase
-from unilabos.backend.runtime.node import DeviceNode
+from unilabos.client.host.runtime.node import DeviceNode
 from unilabos.registry.decorators import action, device, not_action, topic_config
 
 
