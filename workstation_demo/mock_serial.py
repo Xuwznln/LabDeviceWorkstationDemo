@@ -12,7 +12,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from unilabos.registry.decorators import device, topic_config
+from unilabos.registry.decorators import action, device, topic_config
 
 
 # 通信端点无需声明 hardware_interface：方法名 send_command(写)/read_data(读) 正好是
@@ -60,6 +60,8 @@ class MockSerialDevice:
     def post_init(self, device_node: Any) -> None:
         self._device_node = device_node
 
+    # auto_prefix=True：动作名仍是 auto-send_command，只补前端显示名
+    @action(auto_prefix=True, display_name="发送指令")
     def send_command(self, command: str) -> str:
         """模拟 "写"：发送一条指令并返回模拟下位机应答。
 
@@ -73,6 +75,7 @@ class MockSerialDevice:
         self.logger.info(f"[MockSerial] {cmd} -> {response}")
         return response
 
+    @action(auto_prefix=True, display_name="读取应答")
     def read_data(self) -> str:
         """模拟 "读"：返回最近一次指令对应的模拟应答。"""
         return self._last_response
