@@ -20,7 +20,7 @@ env:
   # 统一 Core（dev 架构 + V1.0 HTTP API，仅 CPython 3.14；ROS 2 Jazzy 来自 RoboStack mutex 0.20）。
   # 管理 API 一律 {code, data} 信封，写请求不需要 token；物料读写走 /api/v1/inventory/*。
   # 包结构只分 client / server：Host 运行时在 unilabos.client.host（DeviceNode 从 unilabos.client.host.runtime 导入）。
-  STABLE_CORE_REF: 26d86d6e8cd48dc74a2823c6fed52c4a747751b0
+  STABLE_CORE_REF: d56c18096d34b8a3deea425c34fc844a381d8af4
 
 jobs:
   prepare:
@@ -142,12 +142,12 @@ jobs:
           distribution = importlib.metadata.distribution("workstation_demo")
           print(f"installed workstation_demo {distribution.version}: {module_path}")
           PY
-      - name: Validate workflow template import contract
+      - name: Validate workflow template import contract and endpoint actions
         shell: bash -el {0}
         run: |
           source "$GITHUB_WORKSPACE/.ci/install/unilabos_msgs/setup.bash"
           cd "$RUNNER_TEMP"
-          python -m pytest -q "$GITHUB_WORKSPACE/tests/test_workflow_template_contract.py" --import-mode=importlib -p no:launch_testing -p no:launch_ros
+          python -m pytest -q "$GITHUB_WORKSPACE/tests/test_workflow_template_contract.py" "$GITHUB_WORKSPACE/tests/test_endpoint_actions.py" --import-mode=importlib -p no:launch_testing -p no:launch_ros
       - name: Validate registry and assert HostLink state/action contract
         shell: bash -el {0}
         run: |

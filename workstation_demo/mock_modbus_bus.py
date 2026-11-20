@@ -11,7 +11,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from unilabos.registry.decorators import HardwareInterface, device, topic_config
+from unilabos.registry.decorators import HardwareInterface, action, device, topic_config
 
 
 # 端点用的是【非默认】方法名 (write_io_coil/read_io_coil)，所以【必须】显式声明
@@ -56,6 +56,8 @@ class MockModbusBus:
     def post_init(self, device_node: Any) -> None:
         self._device_node = device_node
 
+    # auto_prefix=True：动作名仍是 auto-write_io_coil，只补前端显示名
+    @action(auto_prefix=True, display_name="写线圈")
     def write_io_coil(self, coil: int, value: int, slave_id: Optional[int] = None) -> Dict[str, Any]:
         """模拟 "写线圈"。``slave_id`` 由工站从使用方的 extra_info 自动注入。
 
@@ -70,6 +72,7 @@ class MockModbusBus:
         self.logger.info(f"[MockModbus] WRITE slave={sid} coil={coil} value={value}")
         return {"slave_id": sid, "coil": int(coil), "value": int(value)}
 
+    @action(auto_prefix=True, display_name="读线圈")
     def read_io_coil(self, coil: int, slave_id: Optional[int] = None) -> Dict[str, Any]:
         """模拟 "读线圈"。``slave_id`` 由工站从使用方的 extra_info 自动注入。
 

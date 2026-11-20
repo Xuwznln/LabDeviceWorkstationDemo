@@ -82,7 +82,9 @@ python -m unilabos --backend ros2 --disable_hostlink --skip_env_check \
 
 使用非默认方法名的端点必须显式声明方法。`serial_mock` 使用默认的
 `send_command`/`read_data`；`io_mock_modbus` 声明
-`write_io_coil`/`read_io_coil`。绑定取决于图中 `config` 的端点 ID，不依赖图的 links。
+`write_io_coil`/`read_io_coil`。绑定取决于图中 `config` 的端点 ID，不依赖图的 links。端点的读写方法
+用 `@action(auto_prefix=True, display_name=...)` 装饰：动作名仍是 `auto-send_command`、`auto-read_data`、
+`auto-write_io_coil`、`auto-read_io_coil`，编辑器里显示中文名。
 
 ## 默认子工作流与 HTTP 边界
 
@@ -120,6 +122,9 @@ workstation_demo/
   mock_serial.py / echo_reader.py 共享串口端点与使用方
   mock_modbus_bus.py               共享 Modbus 端点
   modbus_sensor.py                 自动注入 slave_id 的使用方
+  workflows.py                     「工作站演示流水」@workflow 模板
   smoke.py                         有终止条件的真实运行时证明
 tests/test_hostlink_smoke.py       HostLink 集成断言
+tests/test_workflow_template_contract.py  模板导入合同（不起运行时）
+tests/test_endpoint_actions.py     注册表：端点动作名与显示名
 ```

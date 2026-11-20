@@ -104,7 +104,10 @@ Modbus consumers share one bus but still produce `slave_id=3` and `slave_id=7`.
 Endpoints using non-default method names must declare them explicitly.
 `serial_mock` uses the defaults `send_command`/`read_data`; `io_mock_modbus`
 declares `write_io_coil`/`read_io_coil`. The binding is driven by graph `config`
-values, not graph links.
+values, not graph links. The endpoint methods are decorated with
+`@action(auto_prefix=True, display_name=...)`: the action names stay
+`auto-send_command`, `auto-read_data`, `auto-write_io_coil` and
+`auto-read_io_coil`, and the editor shows a display name for each.
 
 ## Default sub-workflow and HTTP boundary
 
@@ -144,6 +147,9 @@ workstation_demo/
   mock_serial.py / echo_reader.py shared serial endpoint + consumer
   mock_modbus_bus.py               shared Modbus endpoint
   modbus_sensor.py                 consumers with slave_id injection
+  workflows.py                     the "工作站演示流水" @workflow template
   smoke.py                         bounded real-runtime proof
 tests/test_hostlink_smoke.py       HostLink integration assertion
+tests/test_workflow_template_contract.py  template import contract (no runtime)
+tests/test_endpoint_actions.py     registry: endpoint action names and display names
 ```
